@@ -1151,6 +1151,8 @@ static HRESULT function_value(DispatchEx *dispex, LCID lcid, WORD flags, DISPPAR
     case DISPATCH_METHOD|DISPATCH_PROPERTYGET:
         if(!res)
             return E_INVALIDARG;
+        if(This->obj && dispex_compat_mode(This->obj) < COMPAT_MODE_IE9)
+            return E_ACCESSDENIED;
         /* fall through */
     case DISPATCH_METHOD:
         if(!This->obj)
