@@ -2136,10 +2136,18 @@ static HRESULT WINAPI DispatchEx_InvokeEx(IWineJSDispatch *iface, DISPID id, LCI
     if(pspCaller)
         IServiceProvider_AddRef(pspCaller);
 
+    if(wFlags == (DISPATCH_METHOD | DISPATCH_PROPERTYGET)) {
+        /* When called with arguments, it's a method call - always use DISPATCH_METHOD.
+         * When called without arguments, use version to decide: pre-ES5 calls methods,
+         * ES5+ gets property values. This preserves compatibility with callers that
+         * invoke methods with arguments while fixing property access behavior in ES5+. */
+        if(pdp->cArgs > 0)
+            wFlags = DISPATCH_METHOD;
+        else
+            wFlags = (This->ctx->version < SCRIPTLANGUAGEVERSION_ES5) ? DISPATCH_METHOD : DISPATCH_PROPERTYGET;
+    }
+
     switch(wFlags) {
-    case DISPATCH_METHOD|DISPATCH_PROPERTYGET:
-        wFlags = DISPATCH_METHOD;
-        /* fall through */
     case DISPATCH_METHOD:
     case DISPATCH_CONSTRUCT: {
         jsval_t *argv, buf[6], r;
@@ -2712,7 +2720,7 @@ HRESULT disp_call(script_ctx_t *ctx, IDispatch *disp, DISPID id, WORD flags, uns
         jsdisp_release(jsdisp);
 
     flags &= ~DISPATCH_JSCRIPT_INTERNAL_MASK;
-    if(ret && argc)
+    if(ret && argc && (!jsdisp || ctx->version < SCRIPTLANGUAGEVERSION_ES5))
         flags |= DISPATCH_PROPERTYGET;
 
     dp.cArgs = argc;

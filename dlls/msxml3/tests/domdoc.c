@@ -14357,6 +14357,78 @@ static void test_indent(void)
     SysFreeString(str);
 }
 
+static void test_embedded_xml_declaration(void)
+{
+    IXMLDOMDocument *doc;
+    IXMLDOMElement *elem;
+    VARIANT_BOOL b;
+    HRESULT hr;
+
+    /* Test XML with embedded <?xml?> declaration inside an element.
+     * Windows MSXML tolerates this but libxml2 rejects it.
+     * The implementation wraps such content in CDATA to make it parse. */
+    static const char embedded_xml_str[] =
+        "<?xml version=\"1.0\"?>"
+        "<root>"
+        "  <xmldata><?xml version=\"1.0\"?><nested>content</nested></xmldata>"
+        "</root>";
+
+    /* Test with xml:space preserved content containing XML declaration */
+    static const char embedded_xml_space_str[] =
+        "<?xml version=\"1.0\"?>"
+        "<root xml:space=\"preserve\">"
+        "  <?xml version=\"1.0\"?><data>test</data>"
+        "</root>";
+
+    /* Test normal XML without embedded declarations (should still work) */
+    static const char normal_xml_str[] =
+        "<?xml version=\"1.0\"?>"
+        "<root><child>text</child></root>";
+
+    doc = NULL;
+    hr = CoCreateInstance(&CLSID_DOMDocument2, NULL, CLSCTX_INPROC_SERVER,
+            &IID_IXMLDOMDocument, (void**)&doc);
+    if (hr != S_OK)
+    {
+        win_skip("DOMDocument2 not available, skipping embedded XML tests\n");
+        return;
+    }
+
+    /* Test 1: Normal XML should parse fine */
+    b = VARIANT_FALSE;
+    hr = IXMLDOMDocument_loadXML(doc, _bstr_(normal_xml_str), &b);
+    ok(hr == S_OK, "loadXML failed: %#lx\n", hr);
+    ok(b == VARIANT_TRUE, "failed to load normal XML\n");
+
+    hr = IXMLDOMDocument_get_documentElement(doc, &elem);
+    ok(hr == S_OK, "get_documentElement failed: %#lx\n", hr);
+    if (elem)
+        IXMLDOMElement_Release(elem);
+
+    /* Test 2: XML with embedded declaration in element content */
+    b = VARIANT_FALSE;
+    hr = IXMLDOMDocument_loadXML(doc, _bstr_(embedded_xml_str), &b);
+    ok(hr == S_OK, "loadXML with embedded XML declaration failed: %#lx\n", hr);
+    ok(b == VARIANT_TRUE, "failed to load XML with embedded declaration\n");
+
+    if (b == VARIANT_TRUE)
+    {
+        hr = IXMLDOMDocument_get_documentElement(doc, &elem);
+        ok(hr == S_OK, "get_documentElement failed: %#lx\n", hr);
+        if (elem)
+            IXMLDOMElement_Release(elem);
+    }
+
+    /* Test 3: XML with embedded declaration and xml:space */
+    b = VARIANT_FALSE;
+    hr = IXMLDOMDocument_loadXML(doc, _bstr_(embedded_xml_space_str), &b);
+    ok(hr == S_OK, "loadXML with embedded XML and xml:space failed: %#lx\n", hr);
+    ok(b == VARIANT_TRUE, "failed to load XML with embedded declaration and xml:space\n");
+
+    IXMLDOMDocument_Release(doc);
+    free_bstrs();
+}
+
 static DWORD WINAPI new_thread(void *arg)
 {
     HRESULT hr = CoInitialize(NULL);
@@ -14460,6 +14532,7 @@ START_TEST(domdoc)
     test_xsltemplate();
     test_xsltext();
     test_max_element_depth_values();
+    test_embedded_xml_declaration();
 
     if (is_clsid_supported(&CLSID_MXNamespaceManager40, &IID_IMXNamespaceManager))
     {

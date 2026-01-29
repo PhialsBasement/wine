@@ -1170,3 +1170,38 @@ sync_test("document.open", function() {
     doc.close();
     ok(doc.onclick === f, "doc.onclick != f");
 });
+
+sync_test("XMLSerializer", function() {
+    var serializer = new XMLSerializer();
+    ok(serializer !== null, "XMLSerializer constructor returned null");
+    ok(typeof serializer === "object", "XMLSerializer is not an object");
+
+    /* Test serializeToString with a simple element */
+    var div = document.createElement("div");
+    div.id = "testdiv";
+    div.innerHTML = "test content";
+
+    var result = serializer.serializeToString(div);
+    ok(typeof result === "string", "serializeToString did not return a string");
+    ok(result.length > 0, "serializeToString returned empty string");
+    ok(result.indexOf("testdiv") !== -1, "serialized string does not contain id: " + result);
+    ok(result.indexOf("test content") !== -1, "serialized string does not contain content: " + result);
+
+    /* Test with nested elements */
+    var container = document.createElement("div");
+    var child = document.createElement("span");
+    child.textContent = "nested";
+    container.appendChild(child);
+
+    result = serializer.serializeToString(container);
+    ok(result.indexOf("span") !== -1, "serialized string does not contain span tag: " + result);
+    ok(result.indexOf("nested") !== -1, "serialized string does not contain nested text: " + result);
+
+    /* Test with attributes */
+    var elem = document.createElement("input");
+    elem.type = "text";
+    elem.value = "test value";
+
+    result = serializer.serializeToString(elem);
+    ok(result.indexOf("input") !== -1, "serialized string does not contain input tag: " + result);
+});
